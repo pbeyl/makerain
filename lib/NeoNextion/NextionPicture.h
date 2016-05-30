@@ -1,0 +1,17 @@
+#ifndef __NEONEXTION_NEXTIONPICTURE
+#define __NEONEXTION_NEXTIONPICTURE
+
+#include "Nextion.h"
+#include "INextionTouchable.h"
+
+class NextionPicture : public INextionTouchable
+{
+public:
+  NextionPicture(Nextion &nex, uint8_t page, uint8_t component,
+                 const char *name);
+
+  uint16_t getPictureID();
+  bool setPictureID(uint16_t id);
+};
+
+#endif
