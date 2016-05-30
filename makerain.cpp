@@ -84,13 +84,13 @@ NextionText   sdtt          (nex, 2, 7, "tt"); //duration minutes
 NextionButton sdUp          (nex, 2, 14, "b8"); //Up
 NextionButton sdDown        (nex, 2, 15, "b9"); //Down
 NextionButton sdOk          (nex, 2, 16, "b10"); //OK
-NextionButton sdd1          (nex, 2, 1, "d1"); //Monday
-NextionButton sdd2          (nex, 2, 9, "d2"); //Tuesday
-NextionButton sdd3          (nex, 2, 10, "d3"); //Wednesday
-NextionButton sdd4          (nex, 2, 11, "d4"); //Thursday
-NextionButton sdd5          (nex, 2, 12, "d5"); //Friday
-NextionButton sdd6          (nex, 2, 13, "d6"); //Saturday
-NextionText   sdd7          (nex, 2, 18, "d7"); //Sunday
+NextionButton sdd1          (nex, 2, 18, "d1"); //Sunday
+NextionButton sdd2          (nex, 2, 1, "d2"); //Monday
+NextionButton sdd3          (nex, 2, 9, "d3"); //Tuesday
+NextionButton sdd4          (nex, 2, 10, "d4"); //Wednesday
+NextionButton sdd5          (nex, 2, 11, "d5"); //Thursday
+NextionButton sdd6          (nex, 2, 12, "d6"); //Friday
+NextionButton sdd7          (nex, 2, 13, "d7"); //Saturday
 
 //Settings GUI Elements
 NextionText   setYY         (nex, 1, 6, "YY");
@@ -152,6 +152,53 @@ char* padStr(uint8_t i){
 }
 
 /*
+* Since we are using bit's in a byte to set dayofweek we check if bit is set using this
+* When n = 1 (Mon) while n = 7 (Sun)
+*/
+int isDaySet(unsigned char c, uint8_t n) {
+    static unsigned char mask[] = {1, 2, 4, 8, 16, 32, 64, 128};
+    return ((c & mask[n-1]) != 0);
+}
+
+/*
+* Function to trigger Zone 1-4 state
+*/
+void zoneTrigger(uint8_t Z, bool STATE){
+  switch (Z) {
+    case 0:
+      digitalWrite(13, STATE);
+      digitalWrite(12, STATE);
+      digitalWrite(11, STATE);
+      digitalWrite(10, STATE);
+      break;
+    case 1:
+      digitalWrite(13, STATE);
+      digitalWrite(12, !STATE);
+      digitalWrite(11, !STATE);
+      digitalWrite(10, !STATE);
+      break;
+    case 2:
+      digitalWrite(13, !STATE);
+      digitalWrite(12, STATE);
+      digitalWrite(11, !STATE);
+      digitalWrite(10, !STATE);
+      break;
+    case 3:
+      digitalWrite(13, !STATE);
+      digitalWrite(12, !STATE);
+      digitalWrite(11, STATE);
+      digitalWrite(10, !STATE);
+      break;
+    case 4:
+      digitalWrite(13, !STATE);
+      digitalWrite(12, !STATE);
+      digitalWrite(11, !STATE);
+      digitalWrite(10, STATE);
+      break;
+  }
+}
+
+/*
  * Display current time and date on home page
  *
  */
@@ -174,7 +221,32 @@ void refreshTime() {
     hmm.setText(padStr(now.minute()));
 
 
+    /*
+    * Algorith to check if current time is during irrigation schedule
+    */
+    DateTime alarm(now.year(),now.month(),now.day(),schedule.Hour, schedule.Min, 0);
+    uint16_t tDuration = (schedule.Period*60); //Duration of alarm in seconds
+    int16_t tDiff = now.unixtime()-alarm.unixtime(); //time past since alarm
+    bool inAlarm = false;
 
+    if (isDaySet(schedule.DayOfWeek, now.dayOfTheWeek()+1)) {
+      if ((tDiff > 0) && (tDiff <= (4*tDuration)))
+        {
+          inAlarm = true;
+            if (tDiff<=tDuration){
+              zoneTrigger(1,HIGH);
+            }else if (tDiff<=(2*tDuration)) {
+              zoneTrigger(2,HIGH);
+            }else if (tDiff<=(3*tDuration)) {
+              zoneTrigger(3,HIGH);
+            }else {
+              zoneTrigger(4,HIGH);
+            }
+        } else if (inAlarm) { //reset all flags at end of schedule when was in alarm state
+          zoneTrigger(0,LOW);//0 special - set all zones same value
+          inAlarm = false;
+        }
+    }
 }
 
 /*
@@ -215,15 +287,6 @@ void populateSettings() {
 }
 
 /*
-* Since we are using bit's in a byte to set dayofweek we check if bit is set using this
-* When n = 1 (Mon) while n = 7 (Sun)
-*/
-int isDaySet(unsigned char c, int n) {
-    static unsigned char mask[] = {1, 2, 4, 8, 16, 32, 64, 128};
-    return ((c & mask[n-1]) != 0);
-}
-
-/*
 * manually set the background colour of the schdule page buttons d1-d7
 */
 void setBackgroundColour(uint8_t day) {
@@ -257,7 +320,7 @@ void populateSchedule() {
   /*
   * This for will iterate through every day and set the relevant buttons active
   */
-  for (int n=1; n<8; n++) {
+  for (uint8_t n=1; n<8; n++) {
     if (isDaySet(schedule.DayOfWeek, n)) {setBackgroundColour(n);}
   }
 
@@ -692,7 +755,11 @@ void setup() {
   nextionSerial.begin(115200);
 
   // Perform PIN configuration
+  pinMode(10, OUTPUT);
+  pinMode(11, OUTPUT);
+  pinMode(12, OUTPUT);
   pinMode(13, OUTPUT);
+  zoneTrigger(0, LOW);
 
   /*
    * Configure Pin A2=GND and A3=VCC to power RTC Module
@@ -749,8 +816,8 @@ void setup() {
   Serial.println(sdd7.attachCallback(&sdd7callback));
 
   //Configure the Display to sleep after X seconds, maybe move this onto the display...
-  sendCmD("thsp=30", 8);
-  sendCmD("thup=1", 8);
+  //sendCmD("thsp=30", 8);
+  //sendCmD("thup=1", 8);
 
   Serial.println(F("Done."));
 
@@ -770,6 +837,7 @@ void loop() {
    if ((millis() % 2000)==0)
    {
      refreshTime();
+
    }
  }
 
