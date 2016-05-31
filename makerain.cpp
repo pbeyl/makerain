@@ -65,17 +65,17 @@ boolean Pause = false;
 // GUI Declarations (nex, pgnum, objid, objname)
 //
 //Home GUI Elements
-NextionText   hDD         (nex, 0, 5, "DD"); //Day
-NextionText   hMM         (nex, 0, 13, "MM"); //Month
-NextionText   hYY         (nex, 0, 18, "YY"); //Month
-NextionText   hHH         (nex, 0, 12, "HH"); //Hour
-NextionText   hmm         (nex, 0, 14, "mm"); //Minute
+NextionText   hDD         (nex, 0, 4, "DD"); //Day
+NextionText   hMM         (nex, 0, 9, "MM"); //Month
+NextionText   hYY         (nex, 0, 14, "YY"); //Month
+NextionText   hHH         (nex, 0, 8, "HH"); //Hour
+NextionText   hmm         (nex, 0, 10, "mm"); //Minute
 NextionButton hSet          (nex, 0, 1, "b0"); //Settings Button
 NextionButton hShed         (nex, 0, 2, "b1"); //Shedule Button
-NextionButton b0            (nex, 0, 10, "bt0");
-NextionButton b1            (nex, 0, 4, "bt1");
-NextionButton b2            (nex, 0, 12, "bt2");
-NextionButton b3            (nex, 0, 14, "bt3");
+NextionButton b1            (nex, 0, 15, "b2");
+NextionButton b2            (nex, 0, 16, "b3");
+NextionButton b3            (nex, 0, 17, "b4");
+NextionButton b4            (nex, 0, 18, "b5");
 
 //Scheduler GUI Elements
 NextionText   sdHH          (nex, 2, 3, "H1"); //Hour
@@ -161,6 +161,19 @@ int isDaySet(unsigned char c, uint8_t n) {
 }
 
 /*
+* manually set the background colour of the home page buttons b2-b5
+*/
+void setZoneBackgroundColour(uint8_t day, uint16_t col) {
+  size_t commandLen = 12;
+  char commandBuffer[commandLen];
+  snprintf(commandBuffer, commandLen, "b%d.bco=%d", day+1, col);
+  nex.sendCommand(commandBuffer);
+
+  snprintf(commandBuffer, commandLen, "ref b%d", day+1);
+  nex.sendCommand(commandBuffer);
+}
+
+/*
 * Function to trigger Zone 1-4 state
 */
 void zoneTrigger(uint8_t Z, bool STATE){
@@ -170,30 +183,74 @@ void zoneTrigger(uint8_t Z, bool STATE){
       digitalWrite(12, STATE);
       digitalWrite(11, STATE);
       digitalWrite(10, STATE);
+      setZoneBackgroundColour(1, 0);
+      setZoneBackgroundColour(2, 0);
+      setZoneBackgroundColour(3, 0);
+      setZoneBackgroundColour(4, 0);
       break;
     case 1:
       digitalWrite(13, STATE);
-      digitalWrite(12, !STATE);
-      digitalWrite(11, !STATE);
-      digitalWrite(10, !STATE);
+      digitalWrite(12, LOW);
+      digitalWrite(11, LOW);
+      digitalWrite(10, LOW);
+
+      if (STATE) {
+        setZoneBackgroundColour(1, 1024);
+      } else {
+        setZoneBackgroundColour(1, 0);
+      }
+
+      setZoneBackgroundColour(2, 0);
+      setZoneBackgroundColour(3, 0);
+      setZoneBackgroundColour(4, 0);
       break;
     case 2:
-      digitalWrite(13, !STATE);
+      digitalWrite(13, LOW);
       digitalWrite(12, STATE);
-      digitalWrite(11, !STATE);
-      digitalWrite(10, !STATE);
+      digitalWrite(11, LOW);
+      digitalWrite(10, LOW);
+      setZoneBackgroundColour(1, 0);
+
+      if (STATE) {
+        setZoneBackgroundColour(2, 1024);
+      } else {
+        setZoneBackgroundColour(2, 0);
+      }
+
+      setZoneBackgroundColour(3, 0);
+      setZoneBackgroundColour(4, 0);
       break;
     case 3:
-      digitalWrite(13, !STATE);
-      digitalWrite(12, !STATE);
+      digitalWrite(13, LOW);
+      digitalWrite(12, LOW);
       digitalWrite(11, STATE);
-      digitalWrite(10, !STATE);
+      digitalWrite(10, LOW);
+      setZoneBackgroundColour(1, 0);
+      setZoneBackgroundColour(2, 0);
+
+      if (STATE) {
+        setZoneBackgroundColour(3, 1024);
+      } else {
+        setZoneBackgroundColour(3, 0);
+      }
+
+      setZoneBackgroundColour(4, 0);
       break;
     case 4:
-      digitalWrite(13, !STATE);
-      digitalWrite(12, !STATE);
-      digitalWrite(11, !STATE);
+      digitalWrite(13, LOW);
+      digitalWrite(12, LOW);
+      digitalWrite(11, LOW);
       digitalWrite(10, STATE);
+      setZoneBackgroundColour(1, 0);
+      setZoneBackgroundColour(2, 0);
+      setZoneBackgroundColour(3, 0);
+
+      if (STATE) {
+        setZoneBackgroundColour(4, 1024);
+      } else {
+        setZoneBackgroundColour(4, 0);
+      }
+
       break;
   }
 }
@@ -225,7 +282,7 @@ void refreshTime() {
     * Algorith to check if current time is during irrigation schedule
     */
     DateTime alarm(now.year(),now.month(),now.day(),schedule.Hour, schedule.Min, 0);
-    uint16_t tDuration = (schedule.Period*60); //Duration of alarm in seconds
+    int16_t tDuration = (schedule.Period*60); //Duration of alarm in seconds
     int16_t tDiff = now.unixtime()-alarm.unixtime(); //time past since alarm
     bool inAlarm = false;
 
@@ -289,7 +346,7 @@ void populateSettings() {
 /*
 * manually set the background colour of the schdule page buttons d1-d7
 */
-void setBackgroundColour(uint8_t day) {
+void setDayBackgroundColour(uint8_t day) {
   size_t commandLen = 12;
   char commandBuffer[commandLen];
   snprintf(commandBuffer, commandLen, "d%d.bco=1024", day);
@@ -321,7 +378,7 @@ void populateSchedule() {
   * This for will iterate through every day and set the relevant buttons active
   */
   for (uint8_t n=1; n<8; n++) {
-    if (isDaySet(schedule.DayOfWeek, n)) {setBackgroundColour(n);}
+    if (isDaySet(schedule.DayOfWeek, n)) {setDayBackgroundColour(n);}
   }
 
 }
@@ -598,9 +655,24 @@ void sdOkcallback(NextionEventType type, INextionTouchable *widget)
 
 }
 
-void ZoneOn(NextionEventType type, INextionTouchable *widget)
+void ZoneOn1(NextionEventType type, INextionTouchable *widget)
 {
+  zoneTrigger(1,!digitalRead(13));
+}
 
+void ZoneOn2(NextionEventType type, INextionTouchable *widget)
+{
+  zoneTrigger(2,!digitalRead(12));
+}
+
+void ZoneOn3(NextionEventType type, INextionTouchable *widget)
+{
+  zoneTrigger(3,!digitalRead(11));
+}
+
+void ZoneOn4(NextionEventType type, INextionTouchable *widget)
+{
+  zoneTrigger(4,!digitalRead(10));
 }
 
 
@@ -759,7 +831,7 @@ void setup() {
   pinMode(11, OUTPUT);
   pinMode(12, OUTPUT);
   pinMode(13, OUTPUT);
-  zoneTrigger(0, LOW);
+  zoneTrigger(0, LOW);    //reset all pins/zones to low
 
   /*
    * Configure Pin A2=GND and A3=VCC to power RTC Module
@@ -792,10 +864,10 @@ void setup() {
   // Callbacks for Home page
   Serial.print(hSet.attachCallback(&hSetcallback));
   Serial.print(hShed.attachCallback(&hShedcallback));
-  Serial.print(b0.attachCallback(&ZoneOn));
-  Serial.print(b1.attachCallback(&ZoneOn));
-  Serial.print(b2.attachCallback(&ZoneOn));
-  Serial.print(b3.attachCallback(&ZoneOn));
+  Serial.print(b1.attachCallback(&ZoneOn1));
+  Serial.print(b2.attachCallback(&ZoneOn2));
+  Serial.print(b3.attachCallback(&ZoneOn3));
+  Serial.print(b4.attachCallback(&ZoneOn4));
 
   // Callbacks for Settings page
   Serial.print(setUp.attachCallback(&setUpcallback));
