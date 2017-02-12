@@ -61,6 +61,10 @@ int8_t settime_minute = 0;
 boolean ThasChanged = false;
 boolean ShasChanged = false;
 boolean Pause = false;
+boolean inAlarm = false;
+
+uint8_t currZAlarm = 0;  //current zone in alarm
+uint8_t prevZAlarm = 0;  //previous zone in alarm
 
 // GUI Declarations (nex, pgnum, objid, objname)
 //
@@ -174,9 +178,18 @@ void setZoneBackgroundColour(uint8_t day, uint16_t col) {
 }
 
 /*
-* Function to trigger Zone 1-4 state
+* Function to trigger Zone 1-4 state during an Alarm schedule
 */
 void zoneTrigger(uint8_t Z, bool STATE){
+  prevZAlarm = currZAlarm;
+
+  /*
+    Serial.print("Zone: ");
+    Serial.print(Z);
+    Serial.print(" State: ");
+    Serial.println(STATE);
+  */
+
   switch (Z) {
     case 0:
       digitalWrite(13, STATE);
@@ -277,29 +290,40 @@ void refreshTime() {
     hHH.setText(padStr(now.hour()));
     hmm.setText(padStr(now.minute()));
 
+}
+
+void checkAlarm() {
+    DateTime now = rtc.now();
 
     /*
     * Algorith to check if current time is during irrigation schedule
     */
-    DateTime alarm(now.year(),now.month(),now.day(),schedule.Hour, schedule.Min, 0);
-    int16_t tDuration = (schedule.Period*60); //Duration of alarm in seconds
-    int16_t tDiff = now.unixtime()-alarm.unixtime(); //time past since alarm
-    bool inAlarm = false;
 
     if (isDaySet(schedule.DayOfWeek, now.dayOfTheWeek()+1)) {
+
+      DateTime alarm(now.year(),now.month(),now.day(),schedule.Hour, schedule.Min, 0);
+      int16_t tDuration = (schedule.Period*60); //Duration of alarm in seconds
+      int16_t tDiff = now.unixtime()-alarm.unixtime(); //time past since alarm
+      //inAlarm = false;
+
       if ((tDiff > 0) && (tDiff <= (4*tDuration)))
         {
           inAlarm = true;
             if (tDiff<=tDuration){
-              zoneTrigger(1,HIGH);
+              currZAlarm = 1;
+              if (currZAlarm != prevZAlarm) { zoneTrigger(1,HIGH); }
             }else if (tDiff<=(2*tDuration)) {
-              zoneTrigger(2,HIGH);
+              currZAlarm = 2;
+              if (currZAlarm != prevZAlarm) { zoneTrigger(2,HIGH); }
             }else if (tDiff<=(3*tDuration)) {
-              zoneTrigger(3,HIGH);
+              currZAlarm = 3;
+              if (currZAlarm != prevZAlarm) { zoneTrigger(3,HIGH); }
             }else {
-              zoneTrigger(4,HIGH);
+              currZAlarm = 4;
+              if (currZAlarm != prevZAlarm) { zoneTrigger(4,HIGH); }
             }
         } else if (inAlarm) { //reset all flags at end of schedule when was in alarm state
+          currZAlarm = 0;
           zoneTrigger(0,LOW);//0 special - set all zones same value
           inAlarm = false;
         }
@@ -383,6 +407,15 @@ void populateSchedule() {
 
 }
 
+/*
+ *
+ * Function called when touching the home button
+ *
+ */
+void Homecallback(NextionEventType type, INextionTouchable *widget) {
+
+
+}
 
 /*
  *
@@ -414,32 +447,17 @@ void hShedcallback(NextionEventType type, INextionTouchable *widget) {
 void setUpcallback(NextionEventType type, INextionTouchable *widget)
 {
 
-  if (setYY.getBackgroundColour() == 1024)
-  {
-    ThasChanged = true;
-    setYY.setTextAsNumber(++settime_year);
-  } else if (setMM.getBackgroundColour() == 1024)
+  if (setmm.getBackgroundColour() == 1024)
   {
     ThasChanged = true;
 
-    settime_month++;
-        if (settime_month > 12)
+    settime_minute++;
+        if (settime_minute > 59)
         {
-          settime_month = 1;
+          settime_minute = 0;
         }
 
-    setMM.setText(padStr(settime_month));
-
-  } else if (setDD.getBackgroundColour() == 1024)
-  {
-    ThasChanged = true;
-
-    settime_day++;
-        if (settime_day > 31)
-        {
-          settime_day = 1;
-        }
-    setDD.setText(padStr(settime_day));
+    setmm.setText(padStr(settime_minute));
 
   } else if (setHH.getBackgroundColour() == 1024)
   {
@@ -452,18 +470,33 @@ void setUpcallback(NextionEventType type, INextionTouchable *widget)
         }
     setHH.setText(padStr(settime_hour));
 
-  } else if (setmm.getBackgroundColour() == 1024)
+  } else if (setDD.getBackgroundColour() == 1024)
   {
     ThasChanged = true;
 
-    settime_minute++;
-        if (settime_minute > 59)
+    settime_day++;
+        if (settime_day > 31)
         {
-          settime_minute = 0;
+          settime_day = 1;
+        }
+    setDD.setText(padStr(settime_day));
+
+  } else if (setMM.getBackgroundColour() == 1024)
+  {
+    ThasChanged = true;
+
+    settime_month++;
+        if (settime_month > 12)
+        {
+          settime_month = 1;
         }
 
-    setmm.setText(padStr(settime_minute));
+    setMM.setText(padStr(settime_month));
 
+  } else if (setYY.getBackgroundColour() == 1024)
+  {
+    ThasChanged = true;
+    setYY.setTextAsNumber(++settime_year);
   }
 }
 
@@ -862,6 +895,8 @@ void setup() {
 
   Serial.print(F("Initializing Display: "));
   // Callbacks for Home page
+
+  //Serial.print(Home.attachCallback(&Homecallback));
   Serial.print(hSet.attachCallback(&hSetcallback));
   Serial.print(hShed.attachCallback(&hShedcallback));
   Serial.print(b1.attachCallback(&ZoneOn1));
@@ -893,7 +928,7 @@ void setup() {
 
   Serial.println(F("Done."));
 
-  //Load current time into buffers
+  //Load current time on display
   refreshTime();
 }
 
@@ -909,7 +944,7 @@ void loop() {
    if ((millis() % 2000)==0)
    {
      refreshTime();
-
+     checkAlarm();
    }
  }
 
